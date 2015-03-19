@@ -25,7 +25,7 @@ define('DB_USER', 'multipro');
 define('DB_PASSWORD', 'hivsybjwdoqlextcmpag');
 
 /** MySQL hostname */
-define('DB_HOST', 'localhost');
+define('DB_HOST', 'multipro.co.il.tigris.nethost.co.il');
 
 /** Database Charset to use in creating database tables. */
 define('DB_CHARSET', 'utf8');
