@@ -46,10 +46,48 @@
             }	
            return $testArr;       
         }
-        
-         
-		
+        //gets post data for post id-tester
+        public function getQB(){
+            return get_post_meta(1149);
+           //return get_posts( 'post_type=question-behavior' );
+        }
+        //gets post meta for given id-tester
+        public function getPQB(){
+            return get_post(1106);
+           //return get_posts( 'post_type=question-behavior' );
+        }
+        public function set_questions_behavior(){
+            header("Access-Control-Allow-Origin: *");
+            global $json_api;
+            $user_ID = get_current_user_id();
+            $qArr=json_decode(stripslashes($json_api->query->questionArr));
+            for($i=0;$i<sizeof($qArr);$i++){
+                $question = $qArr[$i];
+                $q_ID =  $question->id;
+                $isCorrect = ($question->handler->correctAnswer==$question->handler->currentAnswer)?"true":"";//insert true for correct answer
+                $chosen=$question->handler->currentAnswer;//chosen answer
+                $timeInQuestion=$question->handler->timeInQuestion;
+                $post=array(                
+                    'post_status'   => 'publish',
+                    'post_type'    =>  'question-behavior',   
+                    'post_title'    => 'q-behave-' . $q_ID          
+                 );
+                   $postid= wp_insert_post( $post);
+                   update_post_meta($postid, 'wpcf-time-in-question', $timeInQuestion);
+                   update_post_meta($postid, 'wpcf-chosen-answer', $chosen);
+                   update_post_meta($postid, 'wpcf-is-correct', $isCorrect);           
+                   update_field( 'field_551a5a067c707', $q_ID, $postid );//connects behaviour to question(according to post id of wp);         
+                   update_field( 'field_551a573d92c44', $user_ID, $postid );//connects behavior to user (according to user id on wp)
+            }
+           return   get_post_meta($postid);  
+        }
+        public function set_last_question(){
+            header("Access-Control-Allow-Origin: *");
+            global $json_api;
+            $user_ID = get_current_user_id();
+        }
 
+        
     }//class JSON_API_Cube_Controller
     
     //class for holdig data for question in tests
@@ -59,6 +97,7 @@
         public $answers;
         public $correctAns;
         public $bookReferance;
+       
         public $year;
 
         function __construct($_id) {
@@ -66,7 +105,9 @@
             $this->question=get_post_meta($_id,'wpcf-question');
             $this->answers=get_post_meta($_id,'wpcf-answer');
             $this->correctAns=get_post_meta($_id,'wpcf-correct');
-            $this->bookReferance=get_post_meta($_id,'wpcf-book-referance');
+            $book = wp_get_post_terms( $_id, 'book');
+            $page= get_post_meta($_id,'wpcf-book-referance');
+            $this->bookReferance=array($book[0]->name,$page[0]);
             $temp=wp_get_post_terms( $_id, 'test-year');
             $this->year=$temp[0]->name;
         }        
