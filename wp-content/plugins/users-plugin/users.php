@@ -8,7 +8,8 @@
 
         //adds a user with no permissions
         public function add_user(){
-            header("Access-Control-Allow-Origin: *");
+            header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+            header("Access-Control-Allow-Credentials : true");
             global $json_api;
             $name=$json_api->query->username;
             $password=$json_api->query->password;
@@ -16,42 +17,50 @@
             $user_id = username_exists($name);
             //check that user isnt registerd allready
             if ( !$user_id and email_exists($email) == false ) {
-	              $user_id= wp_create_user( $name, $password, $email );
+	              $user_id= wp_create_user( $email, $password, $email );
+                  wp_update_user( array( 'ID' => $user_id, 'display_name' => $name ) );
+                   wp_set_current_user($user_id); 
                   $user=new WP_User($user_id);
                   $user->remove_role('subscriber');
-                  $feedback=array('success','user added', $user_id);
+                  $feedback=array('success'=>'success','text'=>'user added','id'=> $user_id);
             } 
             else {
                 if($user_id)
-	                $feedback=array("error","user exists");
+	                $feedback=array('error'=>"error",'text'=>"user exists");
                 else
-                    $feedback=array("error","email exists");
+                    $feedback=array('error'=>"error",'text'=>"email exists");
             }                      
             return $feedback;
         }
         
         //logs in as user
         public function logIn(){
-            header("Access-Control-Allow-Origin: *");
+           header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+            header("Access-Control-Allow-Credentials : true");
+            header('p3p: CP="NOI ADM DEV PSAi COM NAV OUR OTR STP IND DEM"');
             global $json_api;
             //gets the data for the log in
-            $name=$json_api->query->username;
+            $email=$json_api->query->email;
             $password=$json_api->query->password;
            
             $feedback=array();
             $creds = array();
-	        $creds['user_login'] = $name;
+	        $creds['user_login'] = $email;
 	        $creds['user_password'] =$password;
 	        $creds['remember'] = true;
 	        $user = wp_signon( $creds, false );
-	        if ( is_wp_error($user) )
-		       $feedback['error']=$user->get_error_message();
-            else
-               $feedback['success']=$user;
+	        if ( is_wp_error($user) ){
+	              $feedback['error']='error';
+                 $feedback['text']=$user->get_error_message();
+	        }
+            else{
+                wp_set_current_user($user->ID); 
+                $feedback['success']='success';
+               $feedback['user']=$user;
+            }
+             
             return $feedback;
         }
-
-        
 
         public function getUsers(){
             return get_users();
@@ -63,12 +72,17 @@
         }
         //gets the current user that is logged in
         public function getCurrent(){
-             header("Access-Control-Allow-Origin: *");
-            return wp_get_current_user();
+            // header("Access-Control-Allow-Origin: *");
+            header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+            header("Access-Control-Allow-Credentials : true");
+            header('p3p: CP="NOI ADM DEV PSAi COM NAV OUR OTR STP IND DEM"');
+             $logged=(is_user_logged_in())?(wp_get_current_user()):false;//check if user logged in
+            return $logged;
         }
         //log out current user of session
         public function logOut(){
-            header("Access-Control-Allow-Origin: *");
+            header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+            header("Access-Control-Allow-Credentials : true");
             wp_logout();
         }
                
