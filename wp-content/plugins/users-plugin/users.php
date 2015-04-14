@@ -15,20 +15,35 @@
             $password=$json_api->query->password;
             $email=$json_api->query->email;
             $user_id = username_exists($name);
+            $feedback=array();
             //check that user isnt registerd allready
             if ( !$user_id and email_exists($email) == false ) {
 	              $user_id= wp_create_user( $email, $password, $email );
-                  wp_update_user( array( 'ID' => $user_id, 'display_name' => $name ) );
-                   wp_set_current_user($user_id); 
-                  $user=new WP_User($user_id);
-                  $user->remove_role('subscriber');
-                  $feedback=array('success'=>'success','text'=>'user added','id'=> $user_id);
+                  if ( is_wp_error($user_id)) {
+                          $errortext=array();
+                          $errors=$user_id->get_error_codes();
+                          //if(sizeof($errors)==0){//bug in word press for empty doesnt give error codes
+                          //    $errors=array('empty_username','empty_password');
+                          //}
+                          foreach($errors as $error){
+                              $errortext[]=ErrorHandler::getError($error);   
+                                                                                          
+                          }
+                 $feedback['error']=$errortext;
+                  }//if error creating user
+                  else{
+                      wp_update_user( array( 'ID' => $user_id, 'display_name' => $name ) );
+                      wp_set_current_user($user_id); 
+                      $user=new WP_User($user_id);
+                      $user->remove_role('subscriber');
+                      $feedback=array('success'=>'success','text'=>'user added','id'=> $user_id);
+                  }//if successful creating user
             } 
             else {
                 if($user_id)
-	                $feedback=array('error'=>"error",'text'=>"user exists");
+	               $feedback['error']=array('error'=>'username_exists','text'=>'שם משתמש קיים');
                 else
-                    $feedback=array('error'=>"error",'text'=>"email exists");
+                   $feedback['error']= array('error'=>'email_exists','text'=>'דוא"ל קיים כבר במערכת');
             }                      
             return $feedback;
         }
@@ -47,11 +62,20 @@
             $creds = array();
 	        $creds['user_login'] = $email;
 	        $creds['user_password'] =$password;
+            
 	        $creds['remember'] = true;
 	        $user = wp_signon( $creds, false );
 	        if ( is_wp_error($user) ){
-	              $feedback['error']='error';
-                 $feedback['text']=$user->get_error_message();
+                  $errortext=array();
+                  $errors=$user->get_error_codes();
+                  if(sizeof($errors)==0){//bug in word press for empty doesnt give error codes
+                      $errors=array('empty_username','empty_password');
+                  }
+                  foreach($errors as $error){
+                      $errortext[]=ErrorHandler::getError($error);   
+                                                                                          
+                  }
+                 $feedback['error']=$errortext;
 	        }
             else{
                 wp_set_current_user($user->ID); 
@@ -87,6 +111,36 @@
         }
                
     }//class JSON_API_users_Controller
+
+
+    //handles errors for user actions
+    Class ErrorHandler{
+        private static $errorCodes=array(//holds the error codes of user actions and the text represent the error
+                                  array('error'=>'empty_username','text'=>'חסר דוא"ל'),
+                                  array('error'=>'invalid_username','text'=>'דוא"ל לא תקין'),
+                                  array('error'=>'username_exists','text'=>'דוא"ל קיים כבר במערכת'),
+                                  array('error'=>'empty_email','text'=>'חסר דוא"ל'),
+                                  array('error'=>'invalid_email','text'=>'דוא"ל לא תקין'),
+                                  array('error'=>'email_exists','text'=>'דוא"ל קיים כבר במערכת'),
+                                  array('error'=>'registerfail','text'=>'כשל ברישום אנא צור קשר עם  '),
+                                  array('error'=>'empty_password','text'=>'חסר סיסמא'),
+                                  array('error'=>'empty_user_login','text'=>'חסר דוא"ל'),
+                                  array('error'=>'existing_user_login','text'=>'דוא"ל קיים כבר במערכת  '),//the usename is the email
+                                  array('error'=>'existing_user_email','text'=>'דוא"ל קיים כבר במערכת'),
+                                  );
+        private static $defaultError=array('error'=>'default','text'=>'שגיאה');
+        //returns the error according to error code that returned from wp
+       static function getError($eCode){
+           $myError=self::$defaultError;//sets to defualt error
+           foreach(self::$errorCodes as $errorCode){
+               if($errorCode['error']==$eCode){//found wanted ocde
+                    $myError=$errorCode;
+                    break;
+               }
+           }
+        return  $myError;
+       }
+    }
     
    
 
