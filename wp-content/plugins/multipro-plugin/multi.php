@@ -2,7 +2,6 @@
     class JSON_API_Multi_Controller{
     
          
-
         public function getYears(){
            header("Access-Control-Allow-Origin: *");
            $yearsObj=get_terms( 'test-year');
@@ -62,9 +61,35 @@
              $args = array( 'post_type'=>'question-behavior','meta_query'=>array(array('key' =>'question','value' =>$question_ID),array('key' =>'user','value' =>$user_ID)));
              $posts=get_posts($args);//gets the last question post according to user id and test id
              $qId=$posts[0]->ID;
+            // echo $qId;
              $postData=get_post_meta($qId,'wpcf-qObject');
+            // echo json_encode($postData);
+             if(gettype($postData[0])=='string'){
+                $postData[0]=json_decode($postData[0]);
+             }
+                      
+             $postData[0]->handler->{'handler_id'}=$qId;
              return $postData[0];
              
+        }
+        
+        //a post call for given question handler upades data
+        //@param qId - the id of the question_behavior
+        //@param question - the question data to update -(all of the question would be added to the question behavior)
+         public function update_question_behavior(){
+             header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+              global $json_api;
+              $qID=$json_api->query->qId;
+              $question=$json_api->query->question;
+              $question=json_decode($question);
+              //$postID=get_post( (int)$qID);
+              update_post_meta($qID, 'wpcf-qObject', $question);
+              return get_post_meta($qID);
+             
+         }
+         function test_qb(){
+             header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+            return $this->get_question_behavior(59,26);
         }
 
         //gets the last question thhat the user was at for given test
@@ -72,18 +97,23 @@
             global $json_api;
             $userID=$json_api->query->userID;
             $testID=$json_api->query->testID;
-               $post= get_user_meta($userID, 'lastquestion');//gets the id post of the last question of user           
-            $args = array( 'post_type'=>'last-question','post__in' => $post,'meta_query'=>array(array('key' =>'test','value' =>$testID)));
-            $posts=get_posts($args);//gets the last question post according to user id and test id
-            $lastId=$posts[0]->ID;//the posts are ordered by date so the newest one is the modified question
-            $lastq=get_post_meta($lastId);
-            if($lastId!=false)
-                $a=$lastq["last-question"];//there is a last question
-            else
-                $a[0]=0;//there is no last question
-
-           // return $a[0];
+               $post= get_user_meta($userID, 'lastquestion');//gets the id post of the last question of user 
+            //check that there are actula last question posts
+            if(sizeof($post)>0){          
+                $args = array( 'post_type'=>'last-question','post__in' => $post,'meta_query'=>array(array('key' =>'test','value' =>$testID)));
+                $posts=get_posts($args);//gets the last question post according to user id and test id
+                $lastId=$posts[0]->ID;//the posts are ordered by date so the newest one is the modified question
+                $lastq=get_post_meta($lastId);
+                if($lastId!=false)
+                    $a=$lastq["last-question"];//there is a last question
+                else
+                    $a[0]=0;//there is no last question
+            }
+            else//there are no last question posts for userid
+                $a[0]=0;
+           
            return $a[0];
+           
         }
         public function getTests(){
             header("Access-Control-Allow-Origin: *");
@@ -121,6 +151,8 @@
             //return $lastId;
            
         }
+       
+
         //searches the given array of questions and finds the last question that was visited
         private function findLastVisitedQuestion($arr){
             $lastId=0;
@@ -136,8 +168,9 @@
             global $json_api;
             $user_ID = $json_api->query->userID;
             $qArr=json_decode(stripslashes($json_api->query->questionArr));
-            for($i=0;$i<sizeof($qArr)&&$i<$lastvistedQuestion;$i++){
+            for($i=0;$i<sizeof($qArr)&&$i<$lastvistedQuestion;$i++){               
                 $question = $qArr[$i];
+                 if($question->handler->handler_id==-1){// if there isnt yet a question handler
                 $q_ID =  $question->id;
                 $isCorrect = ($question->handler->correctAnswer==$question->handler->currentAnswer)?"true":"";//insert true for correct answer
                 $chosen=$question->handler->currentAnswer;//chosen answer
@@ -148,14 +181,21 @@
                     'post_title'    => 'q-behave-' . $q_ID.$user_ID          
                  );
                    $postid= wp_insert_post( $post);
+                   $question->handler->handler_id=$postid;//updates in data of question the id of the question behavior for further use
                    update_post_meta($postid, 'wpcf-qObject', $question);
                    update_post_meta($postid, 'wpcf-time-in-question', $timeInQuestion);
                    update_post_meta($postid, 'wpcf-chosen-answer', $chosen);
                    update_post_meta($postid, 'wpcf-is-correct', $isCorrect);           
                    update_field( 'field_551a5a067c707', $q_ID, $postid );//connects behaviour to question(according to post id of wp);         
                    update_field( 'field_551a573d92c44', $user_ID, $postid );//connects behavior to user (according to user id on wp)
+                }
+                else//if there is a question handler so just update that question behavior
+                    update_post_meta($question->handler->handler_id, 'wpcf-qObject', $question);
             }
            return   get_post_meta($postid,'wpcf-qObject');  
+        }
+        public function save_questions(){
+            
         }
         public function setlast(){//tester
            return $this->set_last_question(0);
